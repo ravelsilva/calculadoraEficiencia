@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="style.css">
+    <title>Calculadora de Eficiência</title>
+  </head>
+  <body>
+    <h1>Calculadora de Eficiência</h1>
+    <form id="calcForm">
+      <label>
+        Hora Inicial:
+        <input type="time" id="horaInicial" value="08:00" />
+      </label>
+      <br />
+      <label>
+        Hora Pegou:
+        <input type="time" id="horaPegou" value="08:06" />
+      </label>
+      <button type="submit">Calcular</button>
+    </form>
+    <br /><br />
+
+    <h2>Resultados</h2>
+    <table border="1">
+      <thead>
+        <tr>
+          <th>Eficiência</th>
+          <th>1º Possível</th>
+          <th>2º Possível</th>
+          <th>Resultado</th>
+          <th>TMA</th>
+        </tr>
+      </thead>
+      <tbody id="resultados"></tbody>
+    </table>
+
+    <script>
+      document.getElementById("calcForm").addEventListener("submit", (e) => {
+        e.preventDefault();
+        calcular();
+      });
+      function calcular() {
+        const horaInicial = document.getElementById("horaInicial").value;
+        const horaPegou = document.getElementById("horaPegou").value;
+
+        const inicio = parseTime(horaInicial);
+        const pegou = parseTime(horaPegou);
+
+        const inicioTrabalho = 8 * 60; // 08:00
+        const almocoInicio = 12 * 60; // 12:00
+        const almocoFim = 13 * 60; // 13:00
+        const fimTrabalho = 18 * 60; // 18:00
+
+        if (inicio < inicioTrabalho || pegou < inicioTrabalho) {
+          alert("Chamado aberto fora do horário permitido!");
+          return;
+        }
+
+        const eficiencia = [0.7, 0.75, 0.8, 0.85, 0.9];
+        const resultados = [];
+
+        eficiencia.forEach((eff) => {
+          let tempoAtePegar = pegou - inicio;
+          let tempoTotal = tempoAtePegar / (1 - eff);
+          let fechamento1 = inicio + tempoTotal;
+
+          // Ajusta almoço para fechamento1
+          if (inicio < almocoInicio && fechamento1 > almocoInicio) {
+            fechamento1 += 60;
+          }
+
+          let fechamento2 = "-";
+          let diaExtra = 0;
+
+          if (fechamento1 > fimTrabalho) {
+            let saldo = fechamento1 - fimTrabalho;
+            let fechamento2Min = inicioTrabalho + saldo;
+
+            // Ajusta almoço no D+1
+            if (fechamento2Min > almocoInicio) {
+              fechamento2Min += 60;
+            }
+
+            diaExtra = 1;
+
+            // Se ultrapassar 18:00 no D+1, vai para D+2
+            if (fechamento2Min > fimTrabalho) {
+              let excesso = fechamento2Min - fimTrabalho;
+              fechamento2Min = inicioTrabalho + excesso;
+
+              // Ajusta almoço no D+2
+              if (fechamento2Min > almocoInicio) {
+                fechamento2Min += 60;
+              }
+
+              diaExtra = 2;
+            }
+
+            fechamento1 = "-";
+            fechamento2 = minutosParaHora(fechamento2Min) + ` (D+${diaExtra})`;
+          }
+
+          // Calcula TMA descontando almoço e múltiplos dias
+          let tmaMin = calcularTMA(
+            inicio,
+            fechamento1 === "-"
+              ? fechamento2 !== "-"
+                ? parseHoraParaMin(fechamento2) + 1440 * diaExtra
+                : inicio
+              : fechamento1
+          );
+          const resultadoTexto =
+            tmaMin > 600 ? "TMA MUITO ALTO" : "Hora aprovada";
+          resultados.push({
+            eficiencia: `${eff * 100}%`,
+            fechamento1:
+              fechamento1 !== "-" ? minutosParaHora(fechamento1) : "-",
+            fechamento2: fechamento2 !== "-" ? fechamento2 : "-",
+            resultado: resultadoTexto,
+            tma: minutosParaHora(tmaMin),
+          });
+        });
+
+        mostrarResultados(resultados);
+      }
+
+      // Função para converter "HH:MM:SS (D+N)" em minutos absolutos
+      // Considera o D+N para somar dias em minutos
+      function parseHoraParaMin(horaStr) {
+        if (!horaStr) return 0;
+
+        // Exemplo: "08:36:00 (D+2)"
+        let diaExtra = 0;
+        let horaPart = horaStr;
+
+        const regex = /\(D\+(\d+)\)/;
+        const match = horaStr.match(regex);
+        if (match) {
+          diaExtra = parseInt(match[1], 10);
+          horaPart = horaStr.replace(regex, "").trim();
+        }
+
+        const [h, m, s] = horaPart.split(":").map(Number);
+        return h * 60 + m + diaExtra * 1440; // 1440 min por dia
+      }
+
+      // Calcula o TMA descontando intervalos de almoço e múltiplos dias
+      function calcularTMA(inicioMin, fechamentoMin) {
+        const inicioTrabalho = 8 * 60; // 08:00
+        const fimTrabalho = 18 * 60; // 18:00
+        const almocoInicio = 12 * 60; // 12:00
+        const almocoFim = 13 * 60; // 13:00
+        const diaMinutos = fimTrabalho - inicioTrabalho; // 600 min (10h)
+
+        let totalMin = fechamentoMin - inicioMin;
+        if (totalMin <= 0) return 0;
+
+        // Dias inteiros entre as datas
+        let diasInicio = Math.floor(inicioMin / 1440);
+        let diasFim = Math.floor(fechamentoMin / 1440);
+        let diasEntre = diasFim - diasInicio;
+
+        let diaInicio = inicioMin % 1440;
+        let diaFim = fechamentoMin % 1440;
+
+        let tma = 0;
+
+        if (diasEntre === 0) {
+          // Mesmo dia
+          tma = fechamentoMin - inicioMin;
+
+          if (diaInicio < almocoInicio && diaFim > almocoFim) {
+            tma -= 60; // desconta almoço
+          }
+        } else {
+          // Multiplos dias
+
+          // Tempo no primeiro dia: do inicio até 18:00
+          let primeiroDiaUtil = fimTrabalho - diaInicio;
+          if (diaInicio < almocoInicio) {
+            primeiroDiaUtil -= 60; // almoço
+          }
+
+          // Tempo em dias completos no meio
+          let diasCompletosInteiros = diasEntre - 1;
+          let tempoDiasCompletos = diasCompletosInteiros * diaMinutos;
+
+          // Tempo no último dia: desde 08:00 até fechamento
+          let ultimoDiaUtil = diaFim - inicioTrabalho;
+          if (diaFim > almocoFim) {
+            ultimoDiaUtil -= 60; // almoço
+          }
+
+          tma = primeiroDiaUtil + tempoDiasCompletos + ultimoDiaUtil;
+        }
+
+        return tma > 0 ? tma : 0;
+      }
+
+      function parseTime(timeStr) {
+        const [h, m] = timeStr.split(":").map(Number);
+        return h * 60 + m;
+      }
+
+      // converte minutos para string HH:MM:SS
+      function minutosParaHora(mins) {
+        let horas = Math.floor(mins / 60);
+        let minutos = Math.floor(mins % 60);
+        return `${String(horas).padStart(2, "0")}:${String(minutos).padStart(
+          2,
+          "0"
+        )}:00`;
+      }
+
+      function mostrarResultados(resultados) {
+        const tbody = document.getElementById("resultados");
+        tbody.innerHTML = "";
+
+        resultados.forEach((res) => {
+          const corResultado =
+            res.resultado === "TMA MUITO ALTO"
+              ? "color: red; font-weight: bold"
+              : "color: green; font-weight: bold";
+          const row = `<tr>
+          <td>${res.eficiencia}</td>
+          <td>${res.fechamento1}</td>
+          <td>${res.fechamento2}</td>
+          <td style="${corResultado}">${res.resultado}</td>
+          <td>${res.tma}</td>
+        </tr>`;
+          tbody.innerHTML += row;
+        });
+      }
+    </script>
+  </body>
+</html>
