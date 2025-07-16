@@ -45,7 +45,7 @@ Ela ajuda a prever prazos de fechamento com base no tempo de resposta inicial e 
 
 1. Clone o repositório:
    ```bash
-   git clone https://github.com/seu-usuario/nome-do-repositorio.git
+   git clone https://github.com/ravelsilva/calculadoraEficiencia.git
 Abra o arquivo index.html em qualquer navegador moderno.
 
 Preencha:
